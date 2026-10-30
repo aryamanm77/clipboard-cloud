@@ -1,0 +1,218 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default-deny catch-all MUST be first
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isWorkspaceOwner(ownerId) {
+      return isValidId(ownerId);
+    }
+
+    function isWorkspaceClip(clipId) {
+      return exists(/databases/$(database)/documents/clips/$(clipId)) &&
+        isWorkspaceOwner(get(/databases/$(database)/documents/clips/$(clipId)).data.ownerId);
+    }
+
+    // Validation Blueprint: Clip
+    function isValidClip(data) {
+      return data.keys().hasAll([
+          'id',
+          'ownerId',
+          'title',
+          'category',
+          'content',
+          'extractedText',
+          'mimeType',
+          'sizeBytes',
+          'createdAtIso',
+          'status',
+          'progress',
+          'uploadedBytes',
+          'totalDurationMs',
+          'elapsedMs',
+          'region',
+          'sha256',
+          'cloudUrl',
+          'pinned',
+          'ttlLabel',
+          'deviceSource',
+          'fileExtension',
+          'chunkCount',
+          'inlineDataUrl',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'ownerId',
+          'title',
+          'category',
+          'content',
+          'extractedText',
+          'mimeType',
+          'sizeBytes',
+          'createdAtIso',
+          'status',
+          'progress',
+          'uploadedBytes',
+          'totalDurationMs',
+          'elapsedMs',
+          'region',
+          'sha256',
+          'cloudUrl',
+          'pinned',
+          'ttlLabel',
+          'deviceSource',
+          'fileExtension',
+          'chunkCount',
+          'inlineDataUrl',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isWorkspaceOwner(data.ownerId) &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 256 &&
+        data.category is string && data.category.size() >= 1 && data.category.size() <= 16 &&
+        (data.category == 'text' || data.category == 'code' || data.category == 'image' || data.category == 'file') &&
+        data.content is string && data.content.size() <= 200000 &&
+        data.extractedText is string && data.extractedText.size() <= 200000 &&
+        data.mimeType is string && data.mimeType.size() >= 1 && data.mimeType.size() <= 128 &&
+        data.sizeBytes is number && data.sizeBytes >= 0 && data.sizeBytes <= 52428800 &&
+        data.createdAtIso is string && data.createdAtIso.size() >= 1 && data.createdAtIso.size() <= 64 &&
+        data.status is string && data.status.size() >= 1 && data.status.size() <= 16 &&
+        (data.status == 'uploading' || data.status == 'paused' || data.status == 'synced' || data.status == 'failed') &&
+        data.progress is number && data.progress >= 0 && data.progress <= 100 &&
+        data.uploadedBytes is number && data.uploadedBytes >= 0 && data.uploadedBytes <= 52428800 &&
+        data.totalDurationMs is number && data.totalDurationMs >= 0 && data.totalDurationMs <= 600000 &&
+        data.elapsedMs is number && data.elapsedMs >= 0 && data.elapsedMs <= 600000 &&
+        data.region is string && data.region.size() >= 1 && data.region.size() <= 64 &&
+        data.sha256 is string && data.sha256.size() >= 1 && data.sha256.size() <= 128 &&
+        data.cloudUrl is string && data.cloudUrl.size() <= 512 && data.cloudUrl.size() >= 1 &&
+        data.pinned is bool &&
+        data.ttlLabel is string && data.ttlLabel.size() >= 1 && data.ttlLabel.size() <= 64 &&
+        data.deviceSource is string && data.deviceSource.size() >= 1 && data.deviceSource.size() <= 64 &&
+        data.fileExtension is string && data.fileExtension.size() <= 32 &&
+        data.chunkCount is number && data.chunkCount >= 0 && data.chunkCount <= 200 &&
+        data.inlineDataUrl is string && data.inlineDataUrl.size() <= 350000 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: ClipChunk
+    function isValidClipChunk(data, clipId) {
+      return data.keys().hasAll(['clipId', 'ownerId', 'index', 'data', 'createdAt']) &&
+        data.keys().hasOnly(['clipId', 'ownerId', 'index', 'data', 'createdAt']) &&
+        isValidId(data.clipId) &&
+        data.clipId == clipId &&
+        isWorkspaceOwner(data.ownerId) &&
+        data.index is number && data.index >= 0 && data.index < 200 &&
+        data.data is string && data.data.size() >= 1 && data.data.size() <= 400000 &&
+        data.createdAt is timestamp;
+    }
+
+    match /clips/{clipId} {
+      allow get: if isValidId(clipId) && (resource == null || isWorkspaceOwner(existing().ownerId));
+      allow list: if isWorkspaceOwner(existing().ownerId);
+
+      allow create: if isValidId(clipId) &&
+        isValidClip(incoming()) &&
+        incoming().id == clipId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isValidId(clipId) &&
+        isValidClip(incoming()) &&
+        isWorkspaceOwner(existing().ownerId) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().id == existing().id &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().createdAtIso == existing().createdAtIso &&
+        incoming().sha256 == existing().sha256 &&
+        incoming().updatedAt == request.time &&
+        (
+          // Action 1: Progress / Status Sync Update
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'status',
+            'progress',
+            'uploadedBytes',
+            'elapsedMs',
+            'updatedAt'
+          ]) ||
+          // Action 2: Pin Toggle Update
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'pinned',
+            'updatedAt'
+          ]) ||
+          // Action 3: Rename / Metadata Update
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'title',
+            'fileExtension',
+            'updatedAt'
+          ]) ||
+          // Action 4: Full Mutable State Sync Update
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'title',
+            'content',
+            'extractedText',
+            'status',
+            'progress',
+            'uploadedBytes',
+            'elapsedMs',
+            'pinned',
+            'fileExtension',
+            'chunkCount',
+            'inlineDataUrl',
+            'updatedAt'
+          ])
+        );
+
+      allow delete: if isValidId(clipId) &&
+        (resource == null || isWorkspaceOwner(existing().ownerId));
+
+      match /chunks/{chunkId} {
+        allow get: if isValidId(clipId) &&
+          isValidId(chunkId) &&
+          (resource == null || isWorkspaceOwner(existing().ownerId)) &&
+          isWorkspaceClip(clipId);
+
+        allow list: if isWorkspaceOwner(existing().ownerId);
+
+        allow create: if isValidId(clipId) &&
+          isValidId(chunkId) &&
+          isValidClipChunk(incoming(), clipId) &&
+          incoming().createdAt == request.time &&
+          isWorkspaceClip(clipId);
+
+        allow update: if isValidId(clipId) &&
+          isValidId(chunkId) &&
+          isValidClipChunk(incoming(), clipId) &&
+          isWorkspaceOwner(existing().ownerId) &&
+          incoming().ownerId == existing().ownerId &&
+          incoming().clipId == existing().clipId &&
+          incoming().index == existing().index &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['data', 'createdAt']) &&
+          isWorkspaceClip(clipId);
+
+        allow delete: if isValidId(clipId) &&
+          isValidId(chunkId) &&
+          (resource == null || isWorkspaceOwner(existing().ownerId));
+      }
+    }
+  }
+}

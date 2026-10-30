@@ -1,0 +1,10 @@
+{
+  "name": "Clipboard — Cloud Sync & Universal Paste Workspace",
+  "description": "A cloud clipboard web application to paste, drop, and upload images, text snippets, code blocks, and files with staged cloud encryption, chunked upload progress, and cross-device sync.",
+  "requestFramePermissions": [
+    "clipboard-read"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,217 @@
+{
+  "entities": {
+    "Clip": {
+      "title": "Clip",
+      "description": "A synchronized clipboard item or uploaded file metadata record.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique clip identifier.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Authenticated user UID of the clip owner.",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "description": "Display name or filename of the clip.",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "category": {
+          "type": "string",
+          "description": "Clip content classification.",
+          "enum": ["text", "code", "image", "file"],
+          "minLength": 1,
+          "maxLength": 16
+        },
+        "content": {
+          "type": "string",
+          "description": "Text content, code snippet, or file summary.",
+          "maxLength": 200000
+        },
+        "extractedText": {
+          "type": "string",
+          "description": "Extracted readable text for PDF or Word documents.",
+          "maxLength": 200000
+        },
+        "mimeType": {
+          "type": "string",
+          "description": "MIME type of the clip or file.",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "sizeBytes": {
+          "type": "number",
+          "description": "Payload size in bytes."
+        },
+        "createdAtIso": {
+          "type": "string",
+          "description": "ISO timestamp string for display ordering.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "status": {
+          "type": "string",
+          "description": "Current upload status.",
+          "enum": ["uploading", "paused", "synced", "failed"],
+          "minLength": 1,
+          "maxLength": 16
+        },
+        "progress": {
+          "type": "number",
+          "description": "Upload completion percentage (0 to 100)."
+        },
+        "uploadedBytes": {
+          "type": "number",
+          "description": "Uploaded bytes count."
+        },
+        "totalDurationMs": {
+          "type": "number",
+          "description": "Target upload duration in milliseconds."
+        },
+        "elapsedMs": {
+          "type": "number",
+          "description": "Elapsed upload time in milliseconds."
+        },
+        "region": {
+          "type": "string",
+          "description": "Cloud region label.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "sha256": {
+          "type": "string",
+          "description": "Deterministic SHA-256 content hash.",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "cloudUrl": {
+          "type": "string",
+          "description": "Cloud share URL.",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "pinned": {
+          "type": "boolean",
+          "description": "Whether the clip is pinned."
+        },
+        "ttlLabel": {
+          "type": "string",
+          "description": "Time-to-live retention label.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "deviceSource": {
+          "type": "string",
+          "description": "Source device label.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "fileExtension": {
+          "type": "string",
+          "description": "Uppercase file extension if applicable.",
+          "maxLength": 32
+        },
+        "chunkCount": {
+          "type": "number",
+          "description": "Number of binary data URL chunks in the chunks subcollection."
+        },
+        "inlineDataUrl": {
+          "type": "string",
+          "description": "Inline base64 data URL when payload fits within a single document.",
+          "maxLength": 350000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of clip creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last clip update."
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "title",
+        "category",
+        "content",
+        "extractedText",
+        "mimeType",
+        "sizeBytes",
+        "createdAtIso",
+        "status",
+        "progress",
+        "uploadedBytes",
+        "totalDurationMs",
+        "elapsedMs",
+        "region",
+        "sha256",
+        "cloudUrl",
+        "pinned",
+        "ttlLabel",
+        "deviceSource",
+        "fileExtension",
+        "chunkCount",
+        "inlineDataUrl",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ClipChunk": {
+      "title": "ClipChunk",
+      "description": "A binary data URL slice for large uploaded files stored under a clip.",
+      "type": "object",
+      "properties": {
+        "clipId": {
+          "type": "string",
+          "description": "Parent clip identifier.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Authenticated user UID of the clip owner.",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "index": {
+          "type": "number",
+          "description": "Zero-based sequential chunk index."
+        },
+        "data": {
+          "type": "string",
+          "description": "Slice of the base64 data URL string.",
+          "minLength": 1,
+          "maxLength": 400000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when chunk was written."
+        }
+      },
+      "required": ["clipId", "ownerId", "index", "data", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/clips/{clipId}": {
+      "schema": "Clip",
+      "description": "Top-level collection of user clipboard items and uploaded file metadata."
+    },
+    "/clips/{clipId}/chunks/{chunkId}": {
+      "schema": "ClipChunk",
+      "description": "Subcollection storing binary data URL chunks for large uploaded files."
+    }
+  }
+}
